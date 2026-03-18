@@ -39,6 +39,7 @@ export default function FileCard({
 }: FileCardProps) {
   const deleteMutation = useDeleteFile();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -52,8 +53,29 @@ export default function FileCard({
     }
   };
 
-  const handleDownload = () => {
-    window.open(file.blob.getDirectURL(), "_blank");
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      const url = file.blob.getDirectURL();
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Download failed");
+      const arrayBuffer = await response.arrayBuffer();
+      const blob = new Blob([arrayBuffer], {
+        type: file.mimeType || "application/octet-stream",
+      });
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      toast.error("Failed to download file.");
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const colorClass = getFileColor(file.mimeType);
@@ -104,10 +126,11 @@ export default function FileCard({
           variant="secondary"
           size="sm"
           onClick={handleDownload}
+          disabled={isDownloading}
           className="flex-1 h-8 text-xs"
         >
           <Download className="h-3.5 w-3.5 mr-1" />
-          Download
+          {isDownloading ? "Downloading…" : "Download"}
         </Button>
 
         {onShare && (

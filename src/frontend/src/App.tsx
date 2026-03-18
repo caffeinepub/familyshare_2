@@ -1,12 +1,14 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Toaster } from "@/components/ui/sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQueryClient } from "@tanstack/react-query";
-import { FolderHeart, LogOut } from "lucide-react";
+import { Check, Copy, FolderHeart, LogOut } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
+import { toast } from "sonner";
 import type { FileMetadata } from "./backend.d";
 import FileCard from "./components/FileCard";
 import LoginScreen from "./components/LoginScreen";
@@ -21,6 +23,43 @@ import {
 } from "./hooks/useQueries";
 
 const SKELETON_KEYS = ["sk1", "sk2", "sk3", "sk4", "sk5", "sk6"];
+
+function PrincipalIdBanner({ principalText }: { principalText: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(principalText);
+    setCopied(true);
+    toast.success("Principal ID copied!");
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium text-muted-foreground mb-0.5">
+          Your Principal ID
+        </p>
+        <p className="text-sm font-mono text-foreground break-all">
+          {principalText}
+        </p>
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={handleCopy}
+        className="shrink-0 gap-1.5"
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5 text-green-500" />
+        ) : (
+          <Copy className="h-3.5 w-3.5" />
+        )}
+        {copied ? "Copied!" : "Copy"}
+      </Button>
+    </div>
+  );
+}
 
 function FilesGrid({
   files,
@@ -102,6 +141,9 @@ export default function App() {
     queryClient.clear();
   };
 
+  // Principal ID comes directly from identity -- available immediately, no loading needed
+  const principalText = identity?.getPrincipal().toText() ?? "";
+
   const initials = userProfile?.name
     ? userProfile.name
         .split(" ")
@@ -124,13 +166,11 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-background">
       <Toaster richColors />
 
-      {/* Profile Setup Modal */}
       <ProfileSetupModal
         open={showProfileSetup}
         onDone={() => profileQuery.refetch()}
       />
 
-      {/* Share Modal */}
       <ShareModal
         file={shareTarget}
         open={!!shareTarget}
@@ -150,22 +190,24 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            {profileQuery.isLoading ? (
-              <Skeleton className="h-9 w-28 rounded-full" />
-            ) : (
-              <div className="flex items-center gap-2">
-                <Avatar className="h-8 w-8 border-2 border-primary/20">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                    {initials}
-                  </AvatarFallback>
-                </Avatar>
-                {userProfile?.name && (
+            {/* Avatar + name -- show skeleton only for name, not for principal */}
+            <div className="flex items-center gap-2">
+              <Avatar className="h-8 w-8 border-2 border-primary/20">
+                <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              {profileQuery.isLoading ? (
+                <Skeleton className="h-4 w-20 hidden sm:block" />
+              ) : (
+                userProfile?.name && (
                   <span className="text-sm font-medium hidden sm:block">
                     {userProfile.name}
                   </span>
-                )}
-              </div>
-            )}
+                )
+              )}
+            </div>
+
             <Button
               data-ocid="nav.logout_button"
               variant="ghost"
@@ -183,18 +225,20 @@ export default function App() {
       {/* Main */}
       <main className="flex-1 container max-w-6xl mx-auto px-4 py-6">
         <Tabs defaultValue="my-files" className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <TabsList className="w-fit">
-              <TabsTrigger data-ocid="files.tab" value="my-files">
-                My Files
-              </TabsTrigger>
-              <TabsTrigger data-ocid="shared.tab" value="shared">
-                Shared With Me
-              </TabsTrigger>
-            </TabsList>
-          </div>
+          <TabsList className="w-fit">
+            <TabsTrigger data-ocid="files.tab" value="my-files">
+              My Files
+            </TabsTrigger>
+            <TabsTrigger data-ocid="shared.tab" value="shared">
+              Shared With Me
+            </TabsTrigger>
+          </TabsList>
 
           <TabsContent value="my-files" className="space-y-6 mt-0">
+            {/* Principal ID banner -- visible immediately, always shown */}
+            {principalText && (
+              <PrincipalIdBanner principalText={principalText} />
+            )}
             <UploadZone />
             <FilesGrid
               files={myFilesQuery.data ?? []}
@@ -203,7 +247,10 @@ export default function App() {
             />
           </TabsContent>
 
-          <TabsContent value="shared" className="mt-0">
+          <TabsContent value="shared" className="space-y-4 mt-0">
+            {principalText && (
+              <PrincipalIdBanner principalText={principalText} />
+            )}
             <FilesGrid
               files={sharedQuery.data ?? []}
               isLoading={sharedQuery.isLoading}
@@ -213,19 +260,8 @@ export default function App() {
         </Tabs>
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-border py-4 text-center">
-        <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()}. Built with ❤️ using{" "}
-          <a
-            href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-foreground transition-colors"
-          >
-            caffeine.ai
-          </a>
-        </p>
+        <p className="text-xs text-muted-foreground">Made by Mohit Raj</p>
       </footer>
     </div>
   );

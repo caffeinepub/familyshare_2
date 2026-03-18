@@ -5,8 +5,6 @@ import Nat "mo:core/Nat";
 import Map "mo:core/Map";
 import Iter "mo:core/Iter";
 import Order "mo:core/Order";
-import Blob "mo:core/Blob";
-import List "mo:core/List";
 import Int "mo:core/Int";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
@@ -48,6 +46,7 @@ actor {
 
   let files = Map.empty<FileId, FileMetadata>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  var fileCounter : Nat = 0;
 
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
@@ -82,7 +81,9 @@ actor {
       Runtime.trap("Unauthorized: Only authenticated users can upload files");
     };
 
-    let id = name;
+    fileCounter += 1;
+    let id = "file_" # fileCounter.toText();
+
     let fileMetadata : FileMetadata = {
       id;
       name;

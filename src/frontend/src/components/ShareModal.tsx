@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Principal } from "@dfinity/principal";
+import { Principal } from "@icp-sdk/core/principal";
 import { Loader2, UserPlus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -28,13 +28,19 @@ export default function ShareModal({ file, open, onClose }: ShareModalProps) {
 
   const handleShare = async () => {
     if (!file || !principalInput.trim()) return;
+    let p: Principal;
     try {
-      const p = Principal.fromText(principalInput.trim());
+      p = Principal.fromText(principalInput.trim());
+    } catch {
+      toast.error("Invalid Principal ID. Please check and try again.");
+      return;
+    }
+    try {
       await shareMutation.mutateAsync({ fileId: file.id, principal: p });
       toast.success("File shared successfully!");
       setPrincipalInput("");
     } catch {
-      toast.error("Invalid Principal ID. Please check and try again.");
+      toast.error("Failed to share file. Please try again.");
     }
   };
 

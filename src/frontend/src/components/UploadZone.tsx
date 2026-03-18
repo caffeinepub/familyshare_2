@@ -22,12 +22,15 @@ export default function UploadZone() {
         const buffer = await file.arrayBuffer();
         const bytes = new Uint8Array(buffer);
         await uploadMutation.mutateAsync({ file, bytes });
-        toast.success(`"${file.name}" uploaded!`);
-      } catch {
-        toast.error(`Failed to upload "${file.name}".`);
+        toast.success(`"${file.name}" uploaded successfully!`);
+      } catch (err: unknown) {
+        console.error("Upload error:", err);
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Upload failed: ${msg}. Please try again.`);
       } finally {
         setUploadingName("");
         setUploadProgress(0);
+        if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
     [uploadMutation],
