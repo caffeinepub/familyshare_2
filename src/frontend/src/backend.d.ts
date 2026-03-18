@@ -1,0 +1,52 @@
+import type { Principal } from "@icp-sdk/core/principal";
+export interface Some<T> {
+    __kind__: "Some";
+    value: T;
+}
+export interface None {
+    __kind__: "None";
+}
+export type Option<T> = Some<T> | None;
+export class ExternalBlob {
+    getBytes(): Promise<Uint8Array<ArrayBuffer>>;
+    getDirectURL(): string;
+    static fromURL(url: string): ExternalBlob;
+    static fromBytes(blob: Uint8Array<ArrayBuffer>): ExternalBlob;
+    withUploadProgress(onProgress: (percentage: number) => void): ExternalBlob;
+}
+export type Time = bigint;
+export interface FileMetadata {
+    id: FileId;
+    owner: Principal;
+    blob: ExternalBlob;
+    name: string;
+    size: bigint;
+    mimeType: MimeType;
+    uploadTimestamp: Time;
+    sharedWith: Array<Principal>;
+}
+export type MimeType = string;
+export type FileId = string;
+export interface UserProfile {
+    name: string;
+}
+export enum UserRole {
+    admin = "admin",
+    user = "user",
+    guest = "guest"
+}
+export interface backendInterface {
+    assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    deleteFile(fileId: FileId): Promise<void>;
+    getCallerUserProfile(): Promise<UserProfile | null>;
+    getCallerUserRole(): Promise<UserRole>;
+    getFile(fileId: FileId): Promise<FileMetadata | null>;
+    getUserProfile(user: Principal): Promise<UserProfile | null>;
+    isCallerAdmin(): Promise<boolean>;
+    listFilesSharedWithMe(): Promise<Array<FileMetadata>>;
+    listMyFiles(): Promise<Array<FileMetadata>>;
+    saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    shareFile(fileId: FileId, principal: Principal): Promise<void>;
+    unshareFile(fileId: FileId, principal: Principal): Promise<void>;
+    uploadFile(name: string, size: bigint, mimeType: MimeType, blob: ExternalBlob): Promise<FileId>;
+}
