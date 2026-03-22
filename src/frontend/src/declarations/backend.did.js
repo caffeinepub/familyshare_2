@@ -19,10 +19,16 @@ export const _CaffeineStorageRefillResult = IDL.Record({
   'success' : IDL.Opt(IDL.Bool),
   'topped_up_amount' : IDL.Opt(IDL.Nat),
 });
+export const GroupId = IDL.Text;
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
+});
+export const GroupName = IDL.Text;
+export const CreateGroupRequest = IDL.Record({
+  'members' : IDL.Vec(IDL.Principal),
+  'name' : GroupName,
 });
 export const FileId = IDL.Text;
 export const UserProfile = IDL.Record({ 'name' : IDL.Text });
@@ -31,6 +37,7 @@ export const MimeType = IDL.Text;
 export const Time = IDL.Int;
 export const FileMetadata = IDL.Record({
   'id' : FileId,
+  'sharedWithGroups' : IDL.Vec(GroupId),
   'owner' : IDL.Principal,
   'blob' : ExternalBlob,
   'name' : IDL.Text,
@@ -38,6 +45,13 @@ export const FileMetadata = IDL.Record({
   'mimeType' : MimeType,
   'uploadTimestamp' : Time,
   'sharedWith' : IDL.Vec(IDL.Principal),
+});
+export const Group = IDL.Record({
+  'id' : GroupId,
+  'members' : IDL.Vec(IDL.Principal),
+  'owner' : IDL.Principal,
+  'name' : GroupName,
+  'createdAt' : Time,
 });
 
 export const idlService = IDL.Service({
@@ -68,11 +82,15 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addGroupMember' : IDL.Func([GroupId, IDL.Principal], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'createGroup' : IDL.Func([CreateGroupRequest], [GroupId], []),
   'deleteFile' : IDL.Func([FileId], [], []),
+  'deleteGroup' : IDL.Func([GroupId], [], []),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getFile' : IDL.Func([FileId], [IDL.Opt(FileMetadata)], ['query']),
+  'getGroup' : IDL.Func([GroupId], [IDL.Opt(Group)], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
       [IDL.Opt(UserProfile)],
@@ -80,10 +98,15 @@ export const idlService = IDL.Service({
     ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'listFilesSharedWithMe' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+  'listGroupsByMember' : IDL.Func([IDL.Principal], [IDL.Vec(Group)], ['query']),
+  'listGroupsByOwner' : IDL.Func([IDL.Principal], [IDL.Vec(Group)], ['query']),
   'listMyFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+  'removeGroupMember' : IDL.Func([GroupId, IDL.Principal], [], []),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'shareFile' : IDL.Func([FileId, IDL.Principal], [], []),
+  'shareFileWithGroup' : IDL.Func([FileId, GroupId], [], []),
   'unshareFile' : IDL.Func([FileId, IDL.Principal], [], []),
+  'unshareFileFromGroup' : IDL.Func([FileId, GroupId], [], []),
   'uploadFile' : IDL.Func(
       [IDL.Text, IDL.Nat, MimeType, ExternalBlob],
       [FileId],
@@ -105,10 +128,16 @@ export const idlFactory = ({ IDL }) => {
     'success' : IDL.Opt(IDL.Bool),
     'topped_up_amount' : IDL.Opt(IDL.Nat),
   });
+  const GroupId = IDL.Text;
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
+  });
+  const GroupName = IDL.Text;
+  const CreateGroupRequest = IDL.Record({
+    'members' : IDL.Vec(IDL.Principal),
+    'name' : GroupName,
   });
   const FileId = IDL.Text;
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
@@ -117,6 +146,7 @@ export const idlFactory = ({ IDL }) => {
   const Time = IDL.Int;
   const FileMetadata = IDL.Record({
     'id' : FileId,
+    'sharedWithGroups' : IDL.Vec(GroupId),
     'owner' : IDL.Principal,
     'blob' : ExternalBlob,
     'name' : IDL.Text,
@@ -124,6 +154,13 @@ export const idlFactory = ({ IDL }) => {
     'mimeType' : MimeType,
     'uploadTimestamp' : Time,
     'sharedWith' : IDL.Vec(IDL.Principal),
+  });
+  const Group = IDL.Record({
+    'id' : GroupId,
+    'members' : IDL.Vec(IDL.Principal),
+    'owner' : IDL.Principal,
+    'name' : GroupName,
+    'createdAt' : Time,
   });
   
   return IDL.Service({
@@ -154,11 +191,15 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addGroupMember' : IDL.Func([GroupId, IDL.Principal], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'createGroup' : IDL.Func([CreateGroupRequest], [GroupId], []),
     'deleteFile' : IDL.Func([FileId], [], []),
+    'deleteGroup' : IDL.Func([GroupId], [], []),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getFile' : IDL.Func([FileId], [IDL.Opt(FileMetadata)], ['query']),
+    'getGroup' : IDL.Func([GroupId], [IDL.Opt(Group)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
@@ -166,10 +207,23 @@ export const idlFactory = ({ IDL }) => {
       ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'listFilesSharedWithMe' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+    'listGroupsByMember' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(Group)],
+        ['query'],
+      ),
+    'listGroupsByOwner' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(Group)],
+        ['query'],
+      ),
     'listMyFiles' : IDL.Func([], [IDL.Vec(FileMetadata)], ['query']),
+    'removeGroupMember' : IDL.Func([GroupId, IDL.Principal], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'shareFile' : IDL.Func([FileId, IDL.Principal], [], []),
+    'shareFileWithGroup' : IDL.Func([FileId, GroupId], [], []),
     'unshareFile' : IDL.Func([FileId, IDL.Principal], [], []),
+    'unshareFileFromGroup' : IDL.Func([FileId, GroupId], [], []),
     'uploadFile' : IDL.Func(
         [IDL.Text, IDL.Nat, MimeType, ExternalBlob],
         [FileId],

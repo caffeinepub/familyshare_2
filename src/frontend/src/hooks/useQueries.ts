@@ -1,7 +1,13 @@
 import type { Principal } from "@icp-sdk/core/principal";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalBlob } from "../backend";
-import type { FileMetadata, UserProfile } from "../backend.d";
+import type {
+  CreateGroupRequest,
+  FileMetadata,
+  Group,
+  GroupId,
+  UserProfile,
+} from "../backend.d";
 import { useActor } from "./useActor";
 
 export function useListMyFiles() {
@@ -134,6 +140,131 @@ export function useSaveProfile() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["currentUserProfile"] });
+    },
+  });
+}
+
+// ── Group queries ─────────────────────────────────────────────────────────────
+
+export function useListMyGroups(principalId: string | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Group[]>({
+    queryKey: ["myGroups", principalId],
+    queryFn: async () => {
+      if (!actor || !principalId) return [];
+      const { Principal } = await import("@icp-sdk/core/principal");
+      return actor.listGroupsByMember(Principal.fromText(principalId));
+    },
+    enabled: !!actor && !isFetching && !!principalId,
+  });
+}
+
+export function useGetGroup(groupId: GroupId | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<Group | null>({
+    queryKey: ["group", groupId],
+    queryFn: async () => {
+      if (!actor || !groupId) return null;
+      return actor.getGroup(groupId);
+    },
+    enabled: !!actor && !isFetching && !!groupId,
+  });
+}
+
+export function useCreateGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (request: CreateGroupRequest) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.createGroup(request);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["myGroups"] });
+    },
+  });
+}
+
+export function useAddGroupMember() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      member,
+    }: { groupId: GroupId; member: Principal }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.addGroupMember(groupId, member);
+    },
+    onSuccess: (_data, { groupId }) => {
+      qc.invalidateQueries({ queryKey: ["group", groupId] });
+      qc.invalidateQueries({ queryKey: ["myGroups"] });
+    },
+  });
+}
+
+export function useRemoveGroupMember() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      groupId,
+      member,
+    }: { groupId: GroupId; member: Principal }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.removeGroupMember(groupId, member);
+    },
+    onSuccess: (_data, { groupId }) => {
+      qc.invalidateQueries({ queryKey: ["group", groupId] });
+      qc.invalidateQueries({ queryKey: ["myGroups"] });
+    },
+  });
+}
+
+export function useDeleteGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (groupId: GroupId) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.deleteGroup(groupId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["myGroups"] });
+    },
+  });
+}
+
+export function useShareFileWithGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      fileId,
+      groupId,
+    }: { fileId: string; groupId: GroupId }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.shareFileWithGroup(fileId, groupId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["myFiles"] });
+    },
+  });
+}
+
+export function useUnshareFileFromGroup() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      fileId,
+      groupId,
+    }: { fileId: string; groupId: GroupId }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.unshareFileFromGroup(fileId, groupId);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["myFiles"] });
     },
   });
 }

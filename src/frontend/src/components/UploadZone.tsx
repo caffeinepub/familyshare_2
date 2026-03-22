@@ -4,6 +4,7 @@ import { Loader2, Upload } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useActor } from "../hooks/useActor";
 import { useUploadFile } from "../hooks/useQueries";
 
 export default function UploadZone() {
@@ -12,10 +13,20 @@ export default function UploadZone() {
   const [uploadingName, setUploadingName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const { actor, isFetching: actorLoading } = useActor();
   const uploadMutation = useUploadFile(setUploadProgress);
+
+  // Can't upload if actor isn't ready
+  const isReady = !!actor && !actorLoading;
 
   const processFile = useCallback(
     async (file: File) => {
+      if (!isReady) {
+        toast.error(
+          "Still connecting to the network. Please try again in a moment.",
+        );
+        return;
+      }
       setUploadingName(file.name);
       setUploadProgress(0);
       try {
@@ -33,7 +44,7 @@ export default function UploadZone() {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [uploadMutation],
+    [uploadMutation, isReady],
   );
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -75,13 +86,26 @@ export default function UploadZone() {
         type="file"
         className="sr-only"
         onChange={handleFileChange}
-        disabled={isUploading}
+        disabled={isUploading || !isReady}
         aria-label="Choose file to upload"
       />
 
       <div className="flex flex-col items-center justify-center gap-3 py-8 px-6 text-center">
         <AnimatePresence mode="wait">
-          {isUploading ? (
+          {actorLoading && !isUploading ? (
+            <motion.div
+              key="connecting"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center gap-3"
+            >
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+              <p className="text-sm text-muted-foreground">Connecting…</p>
+            </motion.div>
+          ) : isUploading ? (
             <motion.div
               key="uploading"
               data-ocid="upload.loading_state"
@@ -129,6 +153,7 @@ export default function UploadZone() {
                 size="sm"
                 onClick={() => fileInputRef.current?.click()}
                 className="mt-1"
+                disabled={!isReady}
               >
                 <Upload className="h-4 w-4 mr-2" />
                 Choose File

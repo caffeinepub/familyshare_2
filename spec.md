@@ -1,36 +1,37 @@
 # FamilyShare
 
 ## Current State
-New project with no existing application files.
+FamilyShare allows users to upload files, share them with individuals via Principal ID, and view files shared with them. There is no group concept -- sharing is strictly one-to-one.
 
 ## Requested Changes (Diff)
 
 ### Add
-- File upload feature (any file type) using blob-storage
-- File listing with name, size, upload date, and uploader
-- Download files
-- Delete files (owner or admin only)
-- User authentication via authorization component
-- Share files with other users by username/principal
-- View shared files (files others shared with you)
-- My Files view vs Shared With Me view
+- Group data model: GroupId, Group (name, owner, members: [Principal], sharedFiles: [FileId])
+- `createGroup(name)` -- creates a group owned by the caller
+- `addMemberToGroup(groupId, principal)` -- owner adds a member by Principal ID
+- `removeMemberFromGroup(groupId, principal)` -- owner removes a member
+- `shareFileWithGroup(fileId, groupId)` -- owner shares a file with all group members
+- `listMyGroups()` -- returns groups the caller owns or is a member of
+- `getGroup(groupId)` -- returns group details
+- `deleteGroup(groupId)` -- owner can delete a group
+- Frontend: "Groups" tab in sidebar/bottom nav
+- Frontend: Group list with create button
+- Frontend: Group detail view: member list, add member by Principal ID, shared files list
+- Frontend: "Share to Group" option in file share modal
 
 ### Modify
-- N/A (new project)
+- `listFilesSharedWithMe` -- also returns files shared via any group the caller is in
+- ShareModal -- add a second tab or section to share to a group
+- NAV_ITEMS -- add Groups nav item
 
 ### Remove
-- N/A (new project)
+- Nothing removed
 
 ## Implementation Plan
-1. Backend: Define file metadata storage (name, size, type, uploader, timestamp, shared-with list)
-2. Backend: Upload file (store blob + metadata)
-3. Backend: List my files
-4. Backend: List files shared with me
-5. Backend: Share a file with another user (by principal)
-6. Backend: Delete a file (owner only)
-7. Backend: Get download URL for a file
-8. Frontend: Login/logout with authorization
-9. Frontend: Upload file UI with drag-and-drop
-10. Frontend: My Files tab with file cards (name, size, date, share/delete actions)
-11. Frontend: Shared With Me tab
-12. Frontend: Share modal (enter username/principal to share)
+1. Add Group type and group storage map to backend
+2. Implement group CRUD methods with access control
+3. Update `listFilesSharedWithMe` to include group-shared files
+4. Regenerate backend bindings
+5. Add Groups section to frontend with create/manage UI
+6. Update ShareModal to support share-to-group
+7. Add Groups nav item

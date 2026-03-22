@@ -92,6 +92,7 @@ export class ExternalBlob {
 export type Time = bigint;
 export interface FileMetadata {
     id: FileId;
+    sharedWithGroups: Array<GroupId>;
     owner: Principal;
     blob: ExternalBlob;
     name: string;
@@ -103,12 +104,25 @@ export interface FileMetadata {
 export interface _CaffeineStorageRefillInformation {
     proposed_top_up_amount?: bigint;
 }
-export type MimeType = string;
-export type FileId = string;
+export interface CreateGroupRequest {
+    members: Array<Principal>;
+    name: GroupName;
+}
+export interface Group {
+    id: GroupId;
+    members: Array<Principal>;
+    owner: Principal;
+    name: GroupName;
+    createdAt: Time;
+}
 export interface _CaffeineStorageCreateCertificateResult {
     method: string;
     blob_hash: string;
 }
+export type GroupId = string;
+export type MimeType = string;
+export type GroupName = string;
+export type FileId = string;
 export interface UserProfile {
     name: string;
 }
@@ -129,21 +143,30 @@ export interface backendInterface {
     _caffeineStorageRefillCashier(refillInformation: _CaffeineStorageRefillInformation | null): Promise<_CaffeineStorageRefillResult>;
     _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
+    addGroupMember(groupId: GroupId, member: Principal): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    createGroup(request: CreateGroupRequest): Promise<GroupId>;
     deleteFile(fileId: FileId): Promise<void>;
+    deleteGroup(groupId: GroupId): Promise<void>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getFile(fileId: FileId): Promise<FileMetadata | null>;
+    getGroup(groupId: GroupId): Promise<Group | null>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
     listFilesSharedWithMe(): Promise<Array<FileMetadata>>;
+    listGroupsByMember(member: Principal): Promise<Array<Group>>;
+    listGroupsByOwner(owner: Principal): Promise<Array<Group>>;
     listMyFiles(): Promise<Array<FileMetadata>>;
+    removeGroupMember(groupId: GroupId, member: Principal): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     shareFile(fileId: FileId, principal: Principal): Promise<void>;
+    shareFileWithGroup(fileId: FileId, groupId: GroupId): Promise<void>;
     unshareFile(fileId: FileId, principal: Principal): Promise<void>;
+    unshareFileFromGroup(fileId: FileId, groupId: GroupId): Promise<void>;
     uploadFile(name: string, size: bigint, mimeType: MimeType, blob: ExternalBlob): Promise<FileId>;
 }
-import type { ExternalBlob as _ExternalBlob, FileId as _FileId, FileMetadata as _FileMetadata, MimeType as _MimeType, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
+import type { ExternalBlob as _ExternalBlob, FileId as _FileId, FileMetadata as _FileMetadata, Group as _Group, GroupId as _GroupId, MimeType as _MimeType, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _caffeineStorageBlobIsLive(arg0: Uint8Array): Promise<boolean> {
@@ -244,6 +267,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async addGroupMember(arg0: GroupId, arg1: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.addGroupMember(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.addGroupMember(arg0, arg1);
+            return result;
+        }
+    }
     async assignCallerUserRole(arg0: Principal, arg1: UserRole): Promise<void> {
         if (this.processError) {
             try {
@@ -258,6 +295,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async createGroup(arg0: CreateGroupRequest): Promise<GroupId> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.createGroup(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.createGroup(arg0);
+            return result;
+        }
+    }
     async deleteFile(arg0: FileId): Promise<void> {
         if (this.processError) {
             try {
@@ -269,6 +320,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.deleteFile(arg0);
+            return result;
+        }
+    }
+    async deleteGroup(arg0: GroupId): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.deleteGroup(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.deleteGroup(arg0);
             return result;
         }
     }
@@ -314,6 +379,20 @@ export class Backend implements backendInterface {
             return from_candid_opt_n13(this._uploadFile, this._downloadFile, result);
         }
     }
+    async getGroup(arg0: GroupId): Promise<Group | null> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getGroup(arg0);
+                return from_candid_opt_n17(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getGroup(arg0);
+            return from_candid_opt_n17(this._uploadFile, this._downloadFile, result);
+        }
+    }
     async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
         if (this.processError) {
             try {
@@ -346,28 +425,70 @@ export class Backend implements backendInterface {
         if (this.processError) {
             try {
                 const result = await this.actor.listFilesSharedWithMe();
-                return from_candid_vec_n17(this._uploadFile, this._downloadFile, result);
+                return from_candid_vec_n18(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.listFilesSharedWithMe();
-            return from_candid_vec_n17(this._uploadFile, this._downloadFile, result);
+            return from_candid_vec_n18(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async listGroupsByMember(arg0: Principal): Promise<Array<Group>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.listGroupsByMember(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.listGroupsByMember(arg0);
+            return result;
+        }
+    }
+    async listGroupsByOwner(arg0: Principal): Promise<Array<Group>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.listGroupsByOwner(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.listGroupsByOwner(arg0);
+            return result;
         }
     }
     async listMyFiles(): Promise<Array<FileMetadata>> {
         if (this.processError) {
             try {
                 const result = await this.actor.listMyFiles();
-                return from_candid_vec_n17(this._uploadFile, this._downloadFile, result);
+                return from_candid_vec_n18(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.listMyFiles();
-            return from_candid_vec_n17(this._uploadFile, this._downloadFile, result);
+            return from_candid_vec_n18(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async removeGroupMember(arg0: GroupId, arg1: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.removeGroupMember(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.removeGroupMember(arg0, arg1);
+            return result;
         }
     }
     async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
@@ -398,6 +519,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async shareFileWithGroup(arg0: FileId, arg1: GroupId): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.shareFileWithGroup(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.shareFileWithGroup(arg0, arg1);
+            return result;
+        }
+    }
     async unshareFile(arg0: FileId, arg1: Principal): Promise<void> {
         if (this.processError) {
             try {
@@ -412,17 +547,31 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async uploadFile(arg0: string, arg1: bigint, arg2: MimeType, arg3: ExternalBlob): Promise<FileId> {
+    async unshareFileFromGroup(arg0: FileId, arg1: GroupId): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.uploadFile(arg0, arg1, arg2, await to_candid_ExternalBlob_n18(this._uploadFile, this._downloadFile, arg3));
+                const result = await this.actor.unshareFileFromGroup(arg0, arg1);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.uploadFile(arg0, arg1, arg2, await to_candid_ExternalBlob_n18(this._uploadFile, this._downloadFile, arg3));
+            const result = await this.actor.unshareFileFromGroup(arg0, arg1);
+            return result;
+        }
+    }
+    async uploadFile(arg0: string, arg1: bigint, arg2: MimeType, arg3: ExternalBlob): Promise<FileId> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.uploadFile(arg0, arg1, arg2, await to_candid_ExternalBlob_n19(this._uploadFile, this._downloadFile, arg3));
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.uploadFile(arg0, arg1, arg2, await to_candid_ExternalBlob_n19(this._uploadFile, this._downloadFile, arg3));
             return result;
         }
     }
@@ -445,6 +594,9 @@ function from_candid_opt_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8A
 async function from_candid_opt_n13(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_FileMetadata]): Promise<FileMetadata | null> {
     return value.length === 0 ? null : await from_candid_FileMetadata_n14(_uploadFile, _downloadFile, value[0]);
 }
+function from_candid_opt_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Group]): Group | null {
+    return value.length === 0 ? null : value[0];
+}
 function from_candid_opt_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [boolean]): boolean | null {
     return value.length === 0 ? null : value[0];
 }
@@ -453,6 +605,7 @@ function from_candid_opt_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Ar
 }
 async function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     id: _FileId;
+    sharedWithGroups: Array<_GroupId>;
     owner: Principal;
     blob: _ExternalBlob;
     name: string;
@@ -462,6 +615,7 @@ async function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promi
     sharedWith: Array<Principal>;
 }): Promise<{
     id: FileId;
+    sharedWithGroups: Array<GroupId>;
     owner: Principal;
     blob: ExternalBlob;
     name: string;
@@ -472,6 +626,7 @@ async function from_candid_record_n15(_uploadFile: (file: ExternalBlob) => Promi
 }> {
     return {
         id: value.id,
+        sharedWithGroups: value.sharedWithGroups,
         owner: value.owner,
         blob: await from_candid_ExternalBlob_n16(_uploadFile, _downloadFile, value.blob),
         name: value.name,
@@ -502,10 +657,10 @@ function from_candid_variant_n12(_uploadFile: (file: ExternalBlob) => Promise<Ui
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-async function from_candid_vec_n17(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_FileMetadata>): Promise<Array<FileMetadata>> {
+async function from_candid_vec_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_FileMetadata>): Promise<Array<FileMetadata>> {
     return await Promise.all(value.map(async (x)=>await from_candid_FileMetadata_n14(_uploadFile, _downloadFile, x)));
 }
-async function to_candid_ExternalBlob_n18(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: ExternalBlob): Promise<_ExternalBlob> {
+async function to_candid_ExternalBlob_n19(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: ExternalBlob): Promise<_ExternalBlob> {
     return await _uploadFile(value);
 }
 function to_candid_UserRole_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {

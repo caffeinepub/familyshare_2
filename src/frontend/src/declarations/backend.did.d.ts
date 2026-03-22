@@ -10,10 +10,15 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface CreateGroupRequest {
+  'members' : Array<Principal>,
+  'name' : GroupName,
+}
 export type ExternalBlob = Uint8Array;
 export type FileId = string;
 export interface FileMetadata {
   'id' : FileId,
+  'sharedWithGroups' : Array<GroupId>,
   'owner' : Principal,
   'blob' : ExternalBlob,
   'name' : string,
@@ -22,6 +27,15 @@ export interface FileMetadata {
   'uploadTimestamp' : Time,
   'sharedWith' : Array<Principal>,
 }
+export interface Group {
+  'id' : GroupId,
+  'members' : Array<Principal>,
+  'owner' : Principal,
+  'name' : GroupName,
+  'createdAt' : Time,
+}
+export type GroupId = string;
+export type GroupName = string;
 export type MimeType = string;
 export type Time = bigint;
 export interface UserProfile { 'name' : string }
@@ -56,18 +70,27 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addGroupMember' : ActorMethod<[GroupId, Principal], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'createGroup' : ActorMethod<[CreateGroupRequest], GroupId>,
   'deleteFile' : ActorMethod<[FileId], undefined>,
+  'deleteGroup' : ActorMethod<[GroupId], undefined>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getFile' : ActorMethod<[FileId], [] | [FileMetadata]>,
+  'getGroup' : ActorMethod<[GroupId], [] | [Group]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'listFilesSharedWithMe' : ActorMethod<[], Array<FileMetadata>>,
+  'listGroupsByMember' : ActorMethod<[Principal], Array<Group>>,
+  'listGroupsByOwner' : ActorMethod<[Principal], Array<Group>>,
   'listMyFiles' : ActorMethod<[], Array<FileMetadata>>,
+  'removeGroupMember' : ActorMethod<[GroupId, Principal], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'shareFile' : ActorMethod<[FileId, Principal], undefined>,
+  'shareFileWithGroup' : ActorMethod<[FileId, GroupId], undefined>,
   'unshareFile' : ActorMethod<[FileId, Principal], undefined>,
+  'unshareFileFromGroup' : ActorMethod<[FileId, GroupId], undefined>,
   'uploadFile' : ActorMethod<[string, bigint, MimeType, ExternalBlob], FileId>,
 }
 export declare const idlService: IDL.ServiceClass;
