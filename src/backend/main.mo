@@ -8,13 +8,13 @@ import Iter "mo:core/Iter";
 import Order "mo:core/Order";
 import Int "mo:core/Int";
 import Runtime "mo:core/Runtime";
-import Migration "migration";
+
 import MixinAuthorization "authorization/MixinAuthorization";
 import Storage "blob-storage/Storage";
 import MixinStorage "blob-storage/Mixin";
 import AccessControl "authorization/access-control";
 
-(with migration = Migration.run)
+
 actor {
   type FileId = Text;
   type MimeType = Text;
@@ -56,7 +56,6 @@ actor {
     createdAt : Time.Time;
   };
 
-  // Initialize Authorization and Storage systems
   include MixinStorage();
 
   let accessControlState = AccessControl.initState();
@@ -68,17 +67,24 @@ actor {
   var fileCounter : Nat = 0;
   var groupCounter : Nat = 0;
 
-  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access profiles");
+  // Auto-register any authenticated caller as a user.
+  // Guards against state loss on canister upgrade/restart.
+  func ensureRegistered(caller : Principal) {
+    if (not caller.isAnonymous()) {
+      switch (accessControlState.userRoles.get(caller)) {
+        case (null) { accessControlState.userRoles.add(caller, #user); };
+        case (?_) {};
+      };
     };
+  };
+
+  public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
+    if (caller.isAnonymous()) { Runtime.trap("Unauthorized") };
     userProfiles.get(caller);
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can access profiles");
-    };
+    if (caller.isAnonymous()) { Runtime.trap("Unauthorized") };
     if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only view your own profile");
     };
@@ -86,8 +92,9 @@ actor {
   };
 
   public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only users can save profiles");
+      Runtime.trap("Unauthorized");
     };
     userProfiles.add(caller, profile);
   };
@@ -97,6 +104,7 @@ actor {
   };
 
   public shared ({ caller }) func uploadFile(name : Text, size : Nat, mimeType : MimeType, blob : Storage.ExternalBlob) : async FileId {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only authenticated users can upload files");
     };
@@ -121,13 +129,9 @@ actor {
   };
 
   public query ({ caller }) func listMyFiles() : async [FileMetadata] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can list files");
-    };
+    if (caller.isAnonymous()) { return [] };
     files.values().toArray().filter(
-      func(file) {
-        file.owner == caller;
-      }
+      func(file) { file.owner == caller; }
     );
   };
 
@@ -145,152 +149,94 @@ actor {
   };
 
   public query ({ caller }) func listFilesSharedWithMe() : async [FileMetadata] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can list shared files");
-    };
+    if (caller.isAnonymous()) { return [] };
     files.values().toArray().filter(
       func(file) {
-        file.sharedWith.find(
-          func(principal) {
-            principal == caller;
-          }
-        ) != null or isMemberOfAnyGroup(caller, file.sharedWithGroups);
+        file.sharedWith.find(func(principal) { principal == caller }) != null
+          or isMemberOfAnyGroup(caller, file.sharedWithGroups);
       }
     );
   };
 
   public shared ({ caller }) func shareFile(fileId : FileId, principal : Principal) : async () {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can share files");
+      Runtime.trap("Unauthorized");
     };
-
     let file = switch (files.get(fileId)) {
       case (null) { Runtime.trap("File not found") };
       case (?file) { file };
     };
-
-    if (not isOwner(file, caller)) {
-      Runtime.trap("Unauthorized: Only the owner can share this file");
-    };
-
-    if (file.sharedWith.find(func(p) { p == principal }) != null) {
-      return ();
-    };
-
-    let updatedFile : FileMetadata = {
-      file with
-      sharedWith = file.sharedWith.concat([principal]);
-    };
-
-    files.add(fileId, updatedFile);
+    if (not isOwner(file, caller)) { Runtime.trap("Unauthorized: Only the owner can share this file") };
+    if (file.sharedWith.find(func(p) { p == principal }) != null) { return () };
+    files.add(fileId, { file with sharedWith = file.sharedWith.concat([principal]) });
   };
 
   public shared ({ caller }) func shareFileWithGroup(fileId : FileId, groupId : GroupId) : async () {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can share files");
+      Runtime.trap("Unauthorized");
     };
-
     let file = switch (files.get(fileId)) {
       case (null) { Runtime.trap("File not found") };
       case (?file) { file };
     };
-
-    if (not isOwner(file, caller)) {
-      Runtime.trap("Unauthorized: Only the owner can share this file");
-    };
-
+    if (not isOwner(file, caller)) { Runtime.trap("Unauthorized: Only the owner can share this file") };
     switch (groups.get(groupId)) {
       case (null) { Runtime.trap("Group not found") };
       case (?group) {
-        if (file.sharedWithGroups.find(func(id) { id == groupId }) != null) {
-          return ();
-        };
-
-        let updatedFile : FileMetadata = {
-          file with
-          sharedWithGroups = file.sharedWithGroups.concat([groupId]);
-        };
-
-        files.add(fileId, updatedFile);
+        if (file.sharedWithGroups.find(func(id) { id == groupId }) != null) { return () };
+        files.add(fileId, { file with sharedWithGroups = file.sharedWithGroups.concat([groupId]) });
       };
     };
   };
 
   public shared ({ caller }) func unshareFile(fileId : FileId, principal : Principal) : async () {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can unshare files");
+      Runtime.trap("Unauthorized");
     };
-
     let file = switch (files.get(fileId)) {
       case (null) { Runtime.trap("File not found") };
       case (?file) { file };
     };
-
-    if (not isOwner(file, caller)) {
-      Runtime.trap("Unauthorized: Only the owner can unshare this file");
-    };
-
-    let updatedFile : FileMetadata = {
-      file with
-      sharedWith = file.sharedWith.filter(
-        func(p) {
-          not (p == principal);
-        }
-      );
-    };
-
-    files.add(fileId, updatedFile);
+    if (not isOwner(file, caller)) { Runtime.trap("Unauthorized: Only the owner can unshare this file") };
+    files.add(fileId, { file with sharedWith = file.sharedWith.filter(func(p) { not (p == principal) }) });
   };
 
   public shared ({ caller }) func unshareFileFromGroup(fileId : FileId, groupId : GroupId) : async () {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can unshare files");
+      Runtime.trap("Unauthorized");
     };
-
     let file = switch (files.get(fileId)) {
       case (null) { Runtime.trap("File not found") };
       case (?file) { file };
     };
-
-    if (not isOwner(file, caller)) {
-      Runtime.trap("Unauthorized: Only the owner can unshare this file");
-    };
-
+    if (not isOwner(file, caller)) { Runtime.trap("Unauthorized: Only the owner can unshare this file") };
     switch (groups.get(groupId)) {
       case (null) { Runtime.trap("Group not found") };
       case (?group) {
-        let updatedFile : FileMetadata = {
-          file with
-          sharedWithGroups = file.sharedWithGroups.filter(func(id) { id != groupId });
-        };
-
-        files.add(fileId, updatedFile);
+        files.add(fileId, { file with sharedWithGroups = file.sharedWithGroups.filter(func(id) { id != groupId }) });
       };
     };
   };
 
   public shared ({ caller }) func deleteFile(fileId : FileId) : async () {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can delete files");
+      Runtime.trap("Unauthorized");
     };
-
     let file = switch (files.get(fileId)) {
       case (null) { Runtime.trap("File not found") };
       case (?file) { file };
     };
-
-    if (not isOwner(file, caller)) {
-      Runtime.trap("Unauthorized: Only the owner can delete this file");
-    };
-
+    if (not isOwner(file, caller)) { Runtime.trap("Unauthorized: Only the owner can delete this file") };
     files.remove(fileId);
   };
 
   public query ({ caller }) func getFile(fileId : FileId) : async ?FileMetadata {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can access files");
-    };
-
+    if (caller.isAnonymous()) { Runtime.trap("Unauthorized") };
     switch (files.get(fileId)) {
       case (null) { null };
       case (?file) {
@@ -304,133 +250,88 @@ actor {
   };
 
   public shared ({ caller }) func createGroup(request : CreateGroupRequest) : async GroupId {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can create groups");
+      Runtime.trap("Unauthorized");
     };
-
     groupCounter += 1;
     let id = "group_" # groupCounter.toText();
-
-    let group : Group = {
+    groups.add(id, {
       id;
       name = request.name;
       owner = caller;
       members = request.members.concat([caller]);
       createdAt = Time.now();
-    };
-
-    groups.add(id, group);
+    });
     id;
   };
 
   public shared ({ caller }) func addGroupMember(groupId : GroupId, member : Principal) : async () {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can add group members");
+      Runtime.trap("Unauthorized");
     };
-
     switch (groups.get(groupId)) {
       case (null) { Runtime.trap("Group not found") };
       case (?group) {
-        if (group.owner != caller) {
-          Runtime.trap("Unauthorized: Only the group owner can add members");
-        };
-
-        if (group.members.find(func(p) { p == member }) != null) {
-          return ();
-        };
-
-        let updatedGroup : Group = {
-          group with
-          members = group.members.concat([member]);
-        };
-
-        groups.add(groupId, updatedGroup);
+        if (group.owner != caller) { Runtime.trap("Unauthorized: Only the group owner can add members") };
+        if (group.members.find(func(p) { p == member }) != null) { return () };
+        groups.add(groupId, { group with members = group.members.concat([member]) });
       };
     };
   };
 
   public shared ({ caller }) func removeGroupMember(groupId : GroupId, member : Principal) : async () {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can remove group members");
+      Runtime.trap("Unauthorized");
     };
-
     switch (groups.get(groupId)) {
       case (null) { Runtime.trap("Group not found") };
       case (?group) {
-        if (group.owner != caller) {
-          Runtime.trap("Unauthorized: Only the group owner can remove members");
-        };
-
-        let updatedGroup : Group = {
-          group with
-          members = group.members.filter(func(p) { p != member });
-        };
-
-        groups.add(groupId, updatedGroup);
+        if (group.owner != caller) { Runtime.trap("Unauthorized: Only the group owner can remove members") };
+        groups.add(groupId, { group with members = group.members.filter(func(p) { p != member }) });
       };
     };
   };
 
   public shared ({ caller }) func deleteGroup(groupId : GroupId) : async () {
+    ensureRegistered(caller);
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can delete groups");
+      Runtime.trap("Unauthorized");
     };
-
     switch (groups.get(groupId)) {
       case (null) { Runtime.trap("Group not found") };
       case (?group) {
-        if (group.owner != caller) {
-          Runtime.trap("Unauthorized: Only the group owner can delete this group");
-        };
-
+        if (group.owner != caller) { Runtime.trap("Unauthorized: Only the group owner can delete this group") };
         groups.remove(groupId);
       };
     };
   };
 
   public query ({ caller }) func listGroupsByOwner(owner : Principal) : async [Group] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view groups");
-    };
-
-    // Users can only list their own groups, unless they are admin
+    if (caller.isAnonymous()) { return [] };
     if (caller != owner and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only list your own groups");
+      Runtime.trap("Unauthorized");
     };
-
-    groups.values().toArray().filter(
-      func(group) {
-        group.owner == owner;
-      }
-    );
+    groups.values().toArray().filter(func(group) { group.owner == owner });
   };
 
   public query ({ caller }) func listGroupsByMember(member : Principal) : async [Group] {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view groups");
-    };
-
-    // Users can only list groups they are members of, unless they are admin
+    if (caller.isAnonymous()) { return [] };
     if (caller != member and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only list groups you are a member of");
+      Runtime.trap("Unauthorized");
     };
-
     groups.values().toArray().filter(
-      func(group) {
-        group.members.find(func(p) { p == member }) != null;
-      }
+      func(group) { group.members.find(func(p) { p == member }) != null }
     );
   };
 
   public query ({ caller }) func getGroup(groupId : GroupId) : async ?Group {
-    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
-      Runtime.trap("Unauthorized: Only authenticated users can view groups");
-    };
-
+    if (caller.isAnonymous()) { Runtime.trap("Unauthorized") };
     switch (groups.get(groupId)) {
       case (null) { null };
       case (?group) {
-        // Only group members or admins can view group details
         let isMember = group.members.find(func(p) { p == caller }) != null;
         if (not isMember and not AccessControl.isAdmin(accessControlState, caller)) {
           Runtime.trap("Unauthorized: Only group members can view this group");
